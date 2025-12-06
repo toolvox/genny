@@ -1,0 +1,8 @@
+log
+
+test_**/assets
+test_**/www/assets
+
+genny.exe
+
+test_elm/
