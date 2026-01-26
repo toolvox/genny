@@ -170,9 +170,9 @@ func (s *Site) Load() error {
 	// Replace component tags in main template
 	s.mainTemplateContent = s.tagReplacer.ReplaceComponentTags(mainContent, components)
 
-	// Store header and footer content
-	s.headerContent = templates["header.html"]
-	s.footerContent = templates["footer.html"]
+	// Store header and footer content and replace component tags
+	s.headerContent = s.tagReplacer.ReplaceComponentTags(templates["header.html"], components)
+	s.footerContent = s.tagReplacer.ReplaceComponentTags(templates["footer.html"], components)
 
 	log.Println("Site loaded successfully")
 	return nil
