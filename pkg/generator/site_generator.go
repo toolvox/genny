@@ -202,6 +202,160 @@ func (g *MainSiteGenerator) generatePage(page *Page, site *Site, headerContent, 
 	return nil
 }
 
+// GenerateMainSitePreview generates a preview for the main index page
+func (g *MainSiteGenerator) GenerateMainSitePreview(site *Site, mainTemplateContent string, headerContent, footerContent string, previewDir string) error {
+	// Ensure preview directory exists
+	if err := os.MkdirAll(previewDir, 0755); err != nil {
+		return fmt.Errorf("failed to create preview directory: %w", err)
+	}
+
+	// Create a template set with all components, header, and footer
+	t := template.New("Main")
+
+	_, err := t.Parse(mainTemplateContent)
+	if err != nil {
+		return &TemplateParseError{
+			Name:   "Main",
+			Source: mainTemplateContent,
+			Err:    err,
+		}
+	}
+
+	for name, comp := range site.Components {
+		_, err := t.New(name).Parse(comp.Template)
+		if err != nil {
+			return &TemplateParseError{
+				Name:   name,
+				Source: comp.Template,
+				Err:    err,
+			}
+		}
+	}
+
+	if headerContent != "" {
+		if _, err := t.New("header.html").Parse(headerContent); err != nil {
+			return &TemplateParseError{Name: "header.html", Source: headerContent, Err: err}
+		}
+	}
+
+	if footerContent != "" {
+		if _, err := t.New("footer.html").Parse(footerContent); err != nil {
+			return &TemplateParseError{Name: "footer.html", Source: footerContent, Err: err}
+		}
+	}
+
+	var buf bytes.Buffer
+	if err := t.Execute(&buf, site.Data.GetAll()); err != nil {
+		return &TemplateExecuteError{Name: "Main", Err: err}
+	}
+
+	cleaned := utils.CleanupWhitespace(buf.String())
+	cleaned = AdjustPathsForPreview(cleaned)
+
+	outputPath := filepath.Join(previewDir, "index.html")
+	if err := os.WriteFile(outputPath, []byte(cleaned), 0644); err != nil {
+		return fmt.Errorf("failed to write main site preview file: %w", err)
+	}
+
+	return nil
+}
+
+// GeneratePagePreviews generates preview pages for all pages in the preview directory
+func (g *MainSiteGenerator) GeneratePagePreviews(site *Site, headerContent, footerContent string, previewDir string) error {
+	// Ensure preview directory exists
+	if err := os.MkdirAll(previewDir, 0755); err != nil {
+		return fmt.Errorf("failed to create preview directory: %w", err)
+	}
+
+	for _, page := range site.Pages {
+		if err := g.generatePagePreview(page, site, headerContent, footerContent, previewDir); err != nil {
+			return fmt.Errorf("failed to generate preview for page %s: %w", page.OutputPath, err)
+		}
+	}
+	return nil
+}
+
+// generatePagePreview generates a single page preview
+func (g *MainSiteGenerator) generatePagePreview(page *Page, site *Site, headerContent, footerContent string, previewDir string) error {
+	// Create a template set with all components, header, and footer
+	t := template.New("Page")
+
+	// Parse the page content
+	_, err := t.Parse(page.Content)
+	if err != nil {
+		return &TemplateParseError{
+			Name:   page.OutputPath,
+			Source: page.Content,
+			Err:    err,
+		}
+	}
+
+	// Add components
+	for name, comp := range site.Components {
+		_, err := t.New(name).Parse(comp.Template)
+		if err != nil {
+			return &TemplateParseError{
+				Name:   name,
+				Source: comp.Template,
+				Err:    err,
+			}
+		}
+	}
+
+	// Add header and footer if they exist
+	if headerContent != "" {
+		_, err := t.New("header.html").Parse(headerContent)
+		if err != nil {
+			return &TemplateParseError{
+				Name:   "header.html",
+				Source: headerContent,
+				Err:    err,
+			}
+		}
+	}
+
+	if footerContent != "" {
+		_, err := t.New("footer.html").Parse(footerContent)
+		if err != nil {
+			return &TemplateParseError{
+				Name:   "footer.html",
+				Source: footerContent,
+				Err:    err,
+			}
+		}
+	}
+
+	// Execute the page template with all data
+	var buf bytes.Buffer
+	if err := t.Execute(&buf, site.Data.GetAll()); err != nil {
+		return &TemplateExecuteError{
+			Name: page.OutputPath,
+			Err:  err,
+		}
+	}
+
+	// Clean up excessive whitespace
+	cleaned := utils.CleanupWhitespace(buf.String())
+
+	// Adjust paths for preview directory (same as component previews)
+	cleaned = AdjustPathsForPreview(cleaned)
+
+	// Use the base filename for the preview (e.g., "google.html" not "subdir/index.html")
+	previewName := filepath.Base(page.OutputPath)
+	// For subdirectory pages, use the directory name instead
+	if previewName == "index.html" {
+		dir := filepath.Dir(page.OutputPath)
+		previewName = filepath.Base(dir) + ".html"
+	}
+
+	outputPath := filepath.Join(previewDir, previewName)
+	if err := os.WriteFile(outputPath, []byte(cleaned), 0644); err != nil {
+		return fmt.Errorf("failed to write page preview file: %w", err)
+	}
+
+	return nil
+}
+
 // CopyAssets copies static assets to the output directory
 func (g *MainSiteGenerator) CopyAssets(assets []Asset) error {
 	for _, asset := range assets {

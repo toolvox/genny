@@ -34,6 +34,8 @@ type Site struct {
 	originalPageContent        map[string]string
 	originalComponentTemplates map[string]string
 	originalMainContent        string
+	originalHeaderContent      string
+	originalFooterContent      string
 
 	verbose bool
 }
@@ -170,6 +172,10 @@ func (s *Site) Load() error {
 	// Replace component tags in main template
 	s.mainTemplateContent = s.tagReplacer.ReplaceComponentTags(mainContent, components)
 
+	// Store original header and footer content before tag replacement (for usage tracking)
+	s.originalHeaderContent = templates["header.html"]
+	s.originalFooterContent = templates["footer.html"]
+
 	// Store header and footer content and replace component tags
 	s.headerContent = s.tagReplacer.ReplaceComponentTags(templates["header.html"], components)
 	s.footerContent = s.tagReplacer.ReplaceComponentTags(templates["footer.html"], components)
@@ -210,6 +216,17 @@ func (s *Site) Generate() error {
 	}
 	log.Printf("Generated %d pages", len(s.site.Pages))
 
+	// Generate page previews
+	if err := mainGen.GeneratePagePreviews(s.site, s.headerContent, s.footerContent, previewDir); err != nil {
+		return fmt.Errorf("failed to generate page previews: %w", err)
+	}
+
+	// Generate main index preview
+	if err := mainGen.GenerateMainSitePreview(s.site, s.mainTemplateContent, s.headerContent, s.footerContent, previewDir); err != nil {
+		return fmt.Errorf("failed to generate main site preview: %w", err)
+	}
+	log.Printf("Generated %d page previews", len(s.site.Pages)+1)
+
 	// Copy assets
 	if err := mainGen.CopyAssets(s.site.Assets); err != nil {
 		return fmt.Errorf("failed to copy assets: %w", err)
@@ -245,10 +262,10 @@ func (s *Site) findUsedComponents() map[string]bool {
 		}
 	}
 
-	// Track components used in header and footer
+	// Track components used in header and footer (use originals before tag replacement)
 	for name := range s.site.Components {
-		if s.isComponentUsedInContent(name, s.headerContent) ||
-			s.isComponentUsedInContent(name, s.footerContent) {
+		if s.isComponentUsedInContent(name, s.originalHeaderContent) ||
+			s.isComponentUsedInContent(name, s.originalFooterContent) {
 			used[name] = true
 		}
 	}

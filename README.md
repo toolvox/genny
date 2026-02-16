@@ -27,21 +27,21 @@ genny -v [path]         # verbose mode: show detailed logging
 ├── index.html       # Main template with component references
 ├── header.html      # Header for every generated page
 ├── footer.html      # Footer for every generated page
-├── styles.css       # Stylesheet
+├── *.css            # Stylesheets (all CSS files are copied to output)
 └── www/             # Generated output directory
     ├── index.html   # Main site
     ├── *.html       # Generated project pages (flat structure)
     ├── */index.html # Generated project pages (subdirectory structure)
-    ├── preview/     # Component previews
+    ├── preview/     # Component and page previews
     ├── assets/      # Copied static assets
-    └── styles.css   # Copied stylesheet
+    └── *.css        # Copied stylesheets
 ```
 
 ## How It Works
 
 1. **Loads runtime data:**
    - Assets from `./assets/`
-   - YAML data from `./data/` (merged into template context)
+   - YAML data from `./data/` (each file namespaced by filename, e.g., `data/projects.yaml` → `.projects`)
    - HTML components from `./components/`
    - Page files:
      - `.html` files at root level (except `index.html`, `header.html`, `footer.html`)
@@ -51,18 +51,19 @@ genny -v [path]         # verbose mode: show detailed logging
    - Extracts wrapper from `index.html` (splits on `<body>` tag)
    - Component files define their data path via `<preview>` tag in `<head>`
    - Automatically prepends `.` to data paths if missing (e.g., `DataPath` becomes `.DataPath`)
-   - Wraps all subdirectory pages with header and footer templates
+   - Wraps all pages with header and footer templates
    - Components can reference other components using `<component_name>` tags
    - Converts component tags to Go template syntax: `<foo>.Key.To.Data</foo>` → `{{ template "foo" .Key.To.Data }}`
 
 3. **Generates output:**
    - Main site from root `index.html` template
-   - All discovered page files from subdirectories
+   - All discovered page files (flat and subdirectory)
    - Component previews (wrapped in index.html structure)
+   - Page previews (including index, in `www/preview/`)
    - Executes templates with full YAML data context
    - Applies whitespace cleanup to remove excessive newlines
-   - Adjusts asset/stylesheet paths for directory depth
-   - Copies all assets and stylesheets to `./www/`
+   - Adjusts asset/stylesheet paths for directory depth (and for preview directory)
+   - Copies all assets and stylesheets (`*.css`) to `./www/`
 
 ## Component Files
 
@@ -97,7 +98,7 @@ Both structures are supported for backward compatibility. Pages in subdirectorie
 
 ## Data Flow
 
-YAML files in `./data/` are loaded and accessible to templates. Components are matched to their data via the data path specification, then rendered using Go's `html/template` package.
+YAML files in `./data/` are loaded and namespaced by filename (e.g., `data/projects.yaml` is accessible as `.projects` in templates). Components are matched to their data via the `<preview>` data path specification, then rendered using Go's `html/template` package.
 
 ---
 
@@ -113,14 +114,14 @@ pkg/
 │   ├── types.go      - Core domain types (Site, Component, Page, Asset)
 │   ├── errors.go     - Custom error types
 │   ├── component_generator.go - Component preview generation
-│   ├── site_generator.go      - Main site generation
+│   ├── site_generator.go      - Main site and page preview generation
 │   └── path_adjuster.go       - Path adjustment for output
 ├── loader/           - File I/O operations
 │   ├── loader.go     - Loader interface
 │   ├── assets.go     - Asset discovery and loading
 │   ├── data.go       - YAML data file loading
 │   ├── components.go - Component file discovery
-│   ├── pages.go      - Page discovery (subdirectory index.html files)
+│   ├── pages.go      - Page discovery (root-level .html and subdirectory index.html)
 │   └── templates.go  - Template file loading
 ├── orchestrator/     - Workflow coordination
 │   └── orchestrator.go - RunOnce and RunContinuous modes
