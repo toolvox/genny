@@ -27,6 +27,7 @@ genny -v [path]         # verbose mode: show detailed logging
 ├── index.html       # Main template with component references
 ├── header.html      # Header for every generated page
 ├── footer.html      # Footer for every generated page
+├── decrypt.html     # Decrypt form template for encrypted pages (auto-created if needed)
 ├── *.css            # Stylesheets (all CSS files are copied to output)
 └── www/             # Generated output directory
     ├── index.html   # Main site
@@ -58,8 +59,9 @@ genny -v [path]         # verbose mode: show detailed logging
 3. **Generates output:**
    - Main site from root `index.html` template
    - All discovered page files (flat and subdirectory)
+   - Encrypted pages: pages with `<encrypt>` tags are AES-256-GCM encrypted; output contains decrypt form + encrypted payload
    - Component previews (wrapped in index.html structure)
-   - Page previews (including index, in `www/preview/`)
+   - Page previews (including index, in `www/preview/`) - always unencrypted
    - Executes templates with full YAML data context
    - Applies whitespace cleanup to remove excessive newlines
    - Adjusts asset/stylesheet paths for directory depth (and for preview directory)
@@ -96,6 +98,30 @@ Both structures are supported for backward compatibility. Pages in subdirectorie
 - Support component tags just like the main `index.html`
 - Are regenerated when modified in watch mode
 
+## Encrypted Pages
+
+Pages can be password-protected by adding an `<encrypt>` tag in the `<head>` section:
+
+```html
+<!doctype html>
+<html>
+<head>
+    <title>Secret Page</title>
+    <encrypt>my-passphrase</encrypt>
+</head>
+<body>
+    <h1>This content will be encrypted</h1>
+</body>
+</html>
+```
+
+When a page has an `<encrypt>` tag:
+- The **main output** (`www/{page}.html`) is encrypted with AES-256-GCM (key derived via PBKDF2-SHA256). The generated file contains a password form and inline JavaScript that decrypts the page in the browser when the correct passphrase is entered.
+- The **preview** (`www/preview/{page}.html`) is generated normally, fully unencrypted, for development use.
+- The `<encrypt>` tag is stripped from all output.
+
+The decrypt form UI comes from `decrypt.html` at the site root. If this file doesn't exist when an encrypted page is first encountered, a default one is auto-created. You can customize it like any other site-level template (`<html>/<head>/<body>` structure) - only the `<body>` content is used.
+
 ## Data Flow
 
 YAML files in `./data/` are loaded and namespaced by filename (e.g., `data/projects.yaml` is accessible as `.projects` in templates). Components are matched to their data via the `<preview>` data path specification, then rendered using Go's `html/template` package.
@@ -110,6 +136,9 @@ The codebase is organized into focused packages with clear responsibilities:
 pkg/
 ├── cli/              - Command-line interface argument parsing
 │   └── cli.go        - Flag parsing and config management
+├── encrypt/          - Page encryption for password-protected pages
+│   ├── encrypt.go    - AES-256-GCM encryption with PBKDF2-SHA256 key derivation
+│   └── decrypt_template.go - Decrypt page HTML template with inline WebCrypto JS
 ├── generator/        - Site generation logic
 │   ├── types.go      - Core domain types (Site, Component, Page, Asset)
 │   ├── errors.go     - Custom error types

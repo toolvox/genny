@@ -10,7 +10,7 @@ import (
 	"github.com/toolvox/utilgo/pkg/errs"
 )
 
-const version = "v0.1.2"
+const version = "v0.2.1"
 
 func main() {
 	log.Printf("Genny %s", version)

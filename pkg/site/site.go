@@ -7,8 +7,10 @@ import (
 	"html/template"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
+	"genny/pkg/encrypt"
 	"genny/pkg/generator"
 	"genny/pkg/loader"
 	"genny/pkg/parser"
@@ -116,8 +118,16 @@ func (s *Site) Load() error {
 		s.originalPageContent[page.SourcePath] = page.Content
 	}
 
-	// Process pages - wrap with header/footer and replace component tags in page content
+	// Process pages - extract encrypt keys, wrap with header/footer, replace component tags
+	hasEncryptedPages := false
 	for _, page := range pages {
+		// Extract encrypt key before wrapping (it's in the <head> section)
+		page.EncryptKey = s.tagReplacer.ExtractEncryptKey(page.Content)
+		if page.EncryptKey != "" {
+			hasEncryptedPages = true
+			log.Printf("Page %s is encrypted", page.OutputPath)
+		}
+
 		// Wrap page with header and footer templates
 		wrapped, err := s.parser.WrapPageWithHeaderFooter(page.Content)
 		if err != nil {
@@ -125,8 +135,19 @@ func (s *Site) Load() error {
 		}
 		page.Content = wrapped
 
-		// Replace component tags
+		// Replace component tags (also strips <encrypt> tags)
 		page.Content = s.tagReplacer.ReplaceComponentTags(page.Content, components)
+	}
+
+	// Auto-create decrypt.html at site root if any page is encrypted and it doesn't exist
+	if hasEncryptedPages {
+		decryptPath := filepath.Join(s.rootPath, "decrypt.html")
+		if _, err := os.Stat(decryptPath); os.IsNotExist(err) {
+			if err := os.WriteFile(decryptPath, []byte(encrypt.DefaultDecryptPageHTML), 0644); err != nil {
+				return fmt.Errorf("failed to create decrypt template: %w", err)
+			}
+			log.Printf("Created default decrypt template at %s", decryptPath)
+		}
 	}
 
 	// Create the Site struct

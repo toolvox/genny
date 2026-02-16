@@ -37,6 +37,9 @@ func (r *TagReplacer) ReplaceComponentTags(templateContent string, components ma
 	// Remove any remaining <preview> tags from the template
 	result = r.RemovePreviewTags(result)
 
+	// Remove any remaining <encrypt> tags from the template
+	result = r.RemoveEncryptTags(result)
+
 	return result
 }
 
@@ -60,6 +63,36 @@ func (r *TagReplacer) RemovePreviewTags(templateContent string) string {
 		result = result[:start] + result[start+end+len("</preview>"):]
 	}
 
+	return result
+}
+
+// ExtractEncryptKey extracts the passphrase from an <encrypt>key</encrypt> tag
+func (r *TagReplacer) ExtractEncryptKey(content string) string {
+	start := strings.Index(content, "<encrypt>")
+	if start == -1 {
+		return ""
+	}
+	end := strings.Index(content[start:], "</encrypt>")
+	if end == -1 {
+		return ""
+	}
+	return strings.TrimSpace(content[start+len("<encrypt>") : start+end])
+}
+
+// RemoveEncryptTags removes all <encrypt>...</encrypt> tags from the template
+func (r *TagReplacer) RemoveEncryptTags(content string) string {
+	result := content
+	for {
+		start := strings.Index(result, "<encrypt>")
+		if start == -1 {
+			break
+		}
+		end := strings.Index(result[start:], "</encrypt>")
+		if end == -1 {
+			break
+		}
+		result = result[:start] + result[start+end+len("</encrypt>"):]
+	}
 	return result
 }
 

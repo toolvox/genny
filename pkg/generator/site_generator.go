@@ -3,10 +3,12 @@ package generator
 import (
 	"bytes"
 	"fmt"
-	"genny/pkg/utils"
 	"html/template"
 	"os"
 	"path/filepath"
+
+	"genny/pkg/encrypt"
+	"genny/pkg/utils"
 )
 
 // MainSiteGenerator handles generating the main site pages
@@ -185,6 +187,22 @@ func (g *MainSiteGenerator) generatePage(page *Page, site *Site, headerContent, 
 
 	if depth > 0 {
 		cleaned = AdjustPathsForDepth(cleaned, depth)
+	}
+
+	// If page is encrypted, encrypt the full HTML and wrap with decrypt page
+	if page.EncryptKey != "" {
+		salt, iv, ciphertext, err := encrypt.Encrypt(cleaned, page.EncryptKey)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt page %s: %w", page.OutputPath, err)
+		}
+
+		// Read the decrypt form body from decrypt.html at site root
+		decryptFormHTML, err := utils.ExtractBodyContent(filepath.Join(site.RootPath, "decrypt.html"))
+		if err != nil {
+			return fmt.Errorf("failed to read decrypt template: %w", err)
+		}
+
+		cleaned = encrypt.BuildEncryptedPage(salt, iv, ciphertext, decryptFormHTML)
 	}
 
 	// Ensure output directory exists

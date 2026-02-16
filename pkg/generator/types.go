@@ -32,6 +32,7 @@ type Page struct {
 	Template    string      // Processed template content
 	DataContext interface{} // Data for template execution
 	IsPreview   bool        // True for component previews, false for main site pages
+	EncryptKey  string      // If set, the page output will be encrypted with this passphrase
 }
 
 // Asset represents a static asset file (image, font, etc.)
